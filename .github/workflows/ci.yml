@@ -2,25 +2,41 @@ name: CI Pipeline
 
 on:
   push:
-    branches: ['*']
+    branches: ['**']
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   install:
+    name: Install and validate dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-      - name: Install dependencies
-        run: npm install   # BUG 1 — should be npm ci
+          cache: npm
+      - name: Install dependencies from lockfile
+        run: npm ci
 
   test:
+    name: Lint and test
     runs-on: ubuntu-latest
-    # BUG 2 — missing needs: install, so test runs in parallel with install
-    # BUG 3 — no checkout or npm ci step, so node_modules is empty on this fresh machine
+    needs: install
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: npm
+      # Each GitHub Actions job gets a fresh runner, so dependencies must be
+      # installed again here; the install job's filesystem is not shared.
+      - name: Install dependencies from lockfile
+        run: npm ci
+      - name: Run lint
+        run: npm run lint
       - name: Run tests
         run: npm test
